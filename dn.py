@@ -40,6 +40,8 @@ CONCAT = -2
 EDITTYPE = 'e'
 SELECTTYPE = 's'
 
+FORMSCATALOG = {}
+
 #iniparser factory
 def iniparserfactory():
   iniparser = configparser.ConfigParser(allow_no_value=True)
@@ -117,10 +119,6 @@ class AbstractPDFForm(ABC):
     def extractDataFromParser(cls, parser):
       formdata = cls._readPDFFormFields(parser.formdata)
       textdata = cls._readPDFTextFields(parser.text)
-      # print('formdata-----------')
-      # print(formdata)
-      # print('textdata-----------')
-      # print(textdata)
       return {**textdata, **formdata}
       
     # @classmethod
@@ -177,7 +175,7 @@ class PDFForm_1900070(AbstractPDFForm):
       textdata[field] = fielddata.group(textcapturesmap[field])
     return textdata
     
-forms_catalog = {'211559-050' : PDFForm_211559_050, '1900070': PDFForm_1900070}
+#forms_catalog = {'211559-050' : PDFForm_211559_050, '1900070': PDFForm_1900070}
 
 def identifyform(formscatalog, parser):
 
@@ -186,9 +184,70 @@ def identifyform(formscatalog, parser):
       return form 
   return None  #raise exception here instead
   
-# def openpdf(file):
-  # return pdfplumber.open(file)
-       
+def createscript(formsdata):
+  for iter in formsdata:
+    iterstr = str(iter)
+    formtype = formsdata[iter]["formtype"]
+    filename = formtype + "_" + iterstr + ".txt"
+    formdata = formsdata[iter]['data']
+    pdfform = FORMSCATALOG[formtype]
+ 
+    fieldobjects = genscriptdataobjects(pdfform, formdata) 
+    writescript(filename, fieldobjects)
+   
+def genscriptdataobjects(pdfform, formdata):
+
+  rows = []
+  rows.append('\nlet formdata = [\n')
+  
+  textfields = pdfform.textfields
+  formfields = pdfform.formfields
+  
+
+  for textfield in textfields:
+    row = '{field: "' + textfield + '", fieldtype: "e", value: "' + formdata[textfield] + '"},\n'
+    rows.append(row)
+    
+  for formfield in formfields:
+    row = row = '{field: "' + formfield + '", fieldtype: "' + formfields[formfield] + '", value: "' + formdata[formfield] + '"},\n'
+    rows.append(row)
+  rows.append(']\n')
+  return rows
+
+
+def writescript(filename, fieldobjects):
+  s1 ='''const S = 's'
+
+function processfield(data) {
+  formfield = document.getElementById(data.field)
+  if (data.field == S) {
+    processselectfield(formfield, data.value)
+  } else {                    //otherwise text data
+    formfield.value = data.value
+  }
+}
+
+function processselectfield(field, value) {
+  for (var i = 0; i < field.options.length; i++) {
+    if (field.options[i].text == value) {
+      field.options[i].selected = true;
+      return; 
+    }
+  }
+}'''
+
+  s3 = '''for (data of formdata) {
+  processfield(data)
+}'''
+  try:
+    f = open(filename, "w")
+    f.write(s1)
+    f.writelines(fieldobjects)
+    f.write(s3)
+    f.close()
+  except BaseException as msg:
+    print('Write Error occurred: ' + str(msg))
+      
 def execute():
   try:
 
@@ -197,24 +256,21 @@ def execute():
     data_dir = appconfig['dirs']['datadir']
 
     forms = appconfig['forms']
-    formscatalog = {}
+    
+    #formscatalog = {}
     for formname in forms:
       classname = forms[formname]
-      formscatalog[formname] = str_to_class(classname)
+      FORMSCATALOG[formname] = str_to_class(classname)
 
     parser = PDFParser
 
     #initialize form classes from ini file
 
-    for formname in formscatalog:
+    for formname in FORMSCATALOG:
       formini = ini_dir+formname+'.ini'
       formfieldscatalog = readfieldsfromini(formini)
-      formclass = formscatalog[formname]
+      formclass = FORMSCATALOG[formname]
       formclass.initialize(formfieldscatalog)
-      #print(formclass.name)
-      #print(formfieldscatalog)
-      # print(formclass.textfields)
-      # print(formclass.formfields)
       
     #retrieve PDFs
 
@@ -224,7 +280,7 @@ def execute():
     pdffiles = getPDFfiles(data_dir)
     for pdffile in pdffiles:
       parser.parse(pdffile)
-      form = identifyform(formscatalog, parser)
+      form = identifyform(FORMSCATALOG, parser)
       formdata = form.extractDataFromParser(parser)
       datastore = {'file': pdffile.resolve(), 'formtype': form.name, 'data' : formdata}
       datadict[iter] = datastore
@@ -233,10 +289,11 @@ def execute():
     return datadict
     
   except BaseException as msg:
-    print('Error occured: ' + str(msg))
+    print('Execute Error occurred: ' + str(msg))
 
   
 if __name__ == '__main__':
-    data = execute()
-    print(data)
+  data = execute()
+  createscript(data)
+  
   

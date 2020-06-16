@@ -1,0 +1,36 @@
+const S = 's'
+
+function processfield(data) {
+  formfield = document.getElementById(data.field)
+  if (data.field == S) {
+    processselectfield(formfield, data.value)
+  } else {                    //otherwise text data
+    formfield.value = data.value
+  }
+}
+
+function processselectfield(field, value) {
+  for (var i = 0; i < field.options.length; i++) {
+    if (field.options[i].text == value) {
+      field.options[i].selected = true;
+      return; 
+    }
+  }
+}
+let formdata = [
+{field: "DeliveryNote", fieldtype: "e", value: "1900070"},
+{field: "DeliveryDate", fieldtype: "e", value: "14-01-19"},
+{field: "Ref1", fieldtype: "e", value: "0001"},
+{field: "Desc1", fieldtype: "e", value: "This is a test"},
+{field: "Qty1", fieldtype: "e", value: "1"},
+{field: "Pr1", fieldtype: "e", value: "10"},
+{field: "Amt1", fieldtype: "e", value: "10"},
+{field: "Ref2", fieldtype: "e", value: "0002"},
+{field: "Desc2", fieldtype: "e", value: "This is another test"},
+{field: "Qty2", fieldtype: "e", value: "2"},
+{field: "Pr2", fieldtype: "e", value: "5"},
+{field: "Amt2", fieldtype: "e", value: "10"},
+]
+for (data of formdata) {
+  processfield(data)
+}
